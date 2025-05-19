@@ -59,9 +59,9 @@ int main(int argc, char* argv[])
 		ErrorHandling("accept() error");
 	}
 
-	printf("> client connected by IP address %lu with Port number %u\n",
-		clientAddress.sin_addr.s_addr,
-		clientAddress.sin_port);
+	printf("> client connected by IP address %s with Port number %u\n",
+		inet_ntoa(clientAddress.sin_addr),
+		ntohs(clientAddress.sin_port));
 
 
 	char* recvDatas = (char*)malloc(1024);
