@@ -3,10 +3,13 @@
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #include <winsock2.h>
 
-void ErrorHandling(const char* message);
 
+#define BUFFER_SIZE 1024
 static char host[] = "127.0.0.1";
 unsigned short port = 65456;
+
+
+__declspec(noreturn) void ErrorHandling(const char* message);
 
 int main(int argc, char* argv[])
 {
@@ -56,43 +59,54 @@ int main(int argc, char* argv[])
 		ErrorHandling("accept() error");
 	}
 
-	printf("> client connected by IP address %lu with Port number %u\n", 
+	printf("> client connected by IP address %lu with Port number %u\n",
 		clientAddress.sin_addr.s_addr,
 		clientAddress.sin_port);
 
+
+	char* recvDatas = (char*)malloc(1024);
+	if (recvDatas == NULL) {
+		ErrorHandling("malloc failed");
+	}
+
 	while (true)
 	{
-		char recvDatas[1024];
-		recv(hClientSocket, recvDatas, sizeof(recvDatas), 0);
+		memset(recvDatas, 0, BUFFER_SIZE);
+		const int recvLen = recv(hClientSocket, recvDatas, BUFFER_SIZE, 0);
+		if (recvLen == -1) {
+			ErrorHandling("recv() failed or connection closed");
+		}
 		printf("> echoed: %s\n", recvDatas);
 
 		// SendAll Start
 		size_t totalSizeSent = 0;
-		while (totalSizeSent < sizeof(recvDatas))
+		while (totalSizeSent < recvLen)
 		{
 			size_t bytesSent = send(hClientSocket, recvDatas, sizeof(recvDatas), 0);
 			if (-1 == bytesSent)
 			{
-				ErrorHandling("accept() error");
+				ErrorHandling("send() error");
 			}
 			totalSizeSent += bytesSent;
 		}
 		// SendAll End
 
-		if ("quit" == recvDatas)
+		if (strcmp(recvDatas, "quit") == 0)
 		{
 			break;
 		}
 	}
 
 	printf("> echo - server is de - activated\n");
+
+	free(recvDatas);
 	closesocket(hClientSocket);
 	closesocket(hServerSocket);
 	WSACleanup();
 	return 0;
 }
 
-void ErrorHandling(const char* message)
+__declspec(noreturn) void ErrorHandling(const char* message)
 {
 	fputs(message, stderr);
 	fputc('\n', stderr);
