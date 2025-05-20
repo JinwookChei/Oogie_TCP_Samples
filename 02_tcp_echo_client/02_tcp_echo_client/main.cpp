@@ -8,7 +8,6 @@
 static char host[] = "127.0.0.1";
 unsigned short port = 65456;
 
-void ErrorHandling(const char* message);
 
 int main(int argc, char* argv[])
 {
@@ -20,19 +19,22 @@ int main(int argc, char* argv[])
 
 	if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
 	{
-		ErrorHandling("WSAStartup() error!");
+		__debugbreak();
+		return -1;
 	}
 
 	hClientSocket = socket(PF_INET, SOCK_STREAM, 0);
 	if (hClientSocket == INVALID_SOCKET)
 	{
-		ErrorHandling("socket() error");
+		__debugbreak();
+		return -1;
 	}
 
 	unsigned long hostIP = inet_addr(host);
 	if (hostIP == INADDR_NONE)
 	{
-		ErrorHandling("inet_addr() error");
+		__debugbreak();
+		return -1;
 	}
 
 	memset(&servAddr, 0, sizeof(servAddr));
@@ -42,7 +44,8 @@ int main(int argc, char* argv[])
 
 	if (connect(hClientSocket, (SOCKADDR*)&servAddr, sizeof(servAddr)) == SOCKET_ERROR)
 	{
-		ErrorHandling("connect() error!");
+		__debugbreak();
+		return -1;
 	}
 
 	char* sendDatas = (char*)malloc(BUFFER_SIZE);
@@ -50,7 +53,8 @@ int main(int argc, char* argv[])
 
 	if (sendDatas == NULL || recvDatas == NULL)
 	{
-		ErrorHandling("malloc failed");
+		__debugbreak();
+		return -1;
 	}
 
 	while (true) {
@@ -67,10 +71,13 @@ int main(int argc, char* argv[])
 
 		// SendAll Start
 		size_t accumulBytesSent = 0;
-		while (accumulBytesSent < sendLen) {
-			int bytesSent = send(hClientSocket, sendDatas + accumulBytesSent, sendLen - accumulBytesSent, 0);
-			if (bytesSent == SOCKET_ERROR) {
-				ErrorHandling("send() error");
+		while (accumulBytesSent < sendLen)
+		{
+			size_t bytesSent = send(hClientSocket, sendDatas + accumulBytesSent, sendLen - accumulBytesSent, 0);
+			if (bytesSent == SOCKET_ERROR) 
+			{
+				__debugbreak();
+				return -1;
 			}
 			accumulBytesSent += bytesSent;
 		}
@@ -78,11 +85,11 @@ int main(int argc, char* argv[])
 
 		// 수신
 		memset(recvDatas, 0, BUFFER_SIZE);
-		int recvLen = recv(hClientSocket, recvDatas, BUFFER_SIZE - 1, 0);  // -1 for null-termination
+		const int recvLen = recv(hClientSocket, recvDatas, BUFFER_SIZE, 0);
 		if (recvLen == -1) {
-			ErrorHandling("recv() error or connection closed");
+			__debugbreak();
+			return -1;
 		}
-
 		printf("> received: %s\n", recvDatas);
 
 		// 종료 조건
@@ -99,11 +106,4 @@ int main(int argc, char* argv[])
 	closesocket(hClientSocket);
 	WSACleanup();
 	return 0;
-}
-
-void ErrorHandling(const char* message)
-{
-	fputs(message, stderr);
-	fputc('\n', stderr);
-	exit(1);
 }

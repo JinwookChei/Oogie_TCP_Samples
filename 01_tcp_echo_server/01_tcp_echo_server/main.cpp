@@ -9,7 +9,6 @@ static char host[] = "127.0.0.1";
 unsigned short port = 65456;
 
 
-__declspec(noreturn) void ErrorHandling(const char* message);
 
 int main(int argc, char* argv[])
 {
@@ -23,19 +22,22 @@ int main(int argc, char* argv[])
 
 	if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
 	{
-		ErrorHandling("WSAStartup() error!");
+		__debugbreak();
+		return -1;
 	}
 
 	hServerSocket = socket(PF_INET, SOCK_STREAM, 0);
 	if (hServerSocket == INVALID_SOCKET)
 	{
-		ErrorHandling("socket() error");
+		__debugbreak();
+		return -1;
 	}
 
 	unsigned long hostIP = inet_addr(host);
 	if (hostIP == INADDR_NONE)
 	{
-		ErrorHandling("inet_addr() error");
+		__debugbreak();
+		return -1;
 	}
 
 	memset(&serverAddress, 0, sizeof(serverAddress));
@@ -45,18 +47,21 @@ int main(int argc, char* argv[])
 
 	if (bind(hServerSocket, (SOCKADDR*)&serverAddress, sizeof(serverAddress)) == SOCKET_ERROR)
 	{
-		ErrorHandling("bind() error");
+		__debugbreak();
+		return -1;
 	}
 
 	if (listen(hServerSocket, 10) == SOCKET_ERROR)
 	{
-		ErrorHandling("listen() error");
+		__debugbreak();
+		return -1;
 	}
 
 	hClientSocket = accept(hServerSocket, (SOCKADDR*)&clientAddress, &sizeClientAddress);
 	if (hClientSocket == INVALID_SOCKET)
 	{
-		ErrorHandling("accept() error");
+		__debugbreak();
+		return -1;
 	}
 
 	printf("> client connected by IP address %s with Port number %u\n",
@@ -66,7 +71,8 @@ int main(int argc, char* argv[])
 
 	char* recvDatas = (char*)malloc(1024);
 	if (recvDatas == NULL) {
-		ErrorHandling("malloc failed");
+		__debugbreak();
+		return -1;
 	}
 
 	while (true)
@@ -74,20 +80,22 @@ int main(int argc, char* argv[])
 		memset(recvDatas, 0, BUFFER_SIZE);
 		const int recvLen = recv(hClientSocket, recvDatas, BUFFER_SIZE, 0);
 		if (recvLen == -1) {
-			ErrorHandling("recv() failed or connection closed");
+			__debugbreak();
+			return -1;
 		}
 		printf("> echoed: %s\n", recvDatas);
 
 		// SendAll Start
-		size_t totalSizeSent = 0;
-		while (totalSizeSent < recvLen)
+		size_t accumulBytesSent = 0;
+		while (accumulBytesSent < recvLen)
 		{
-			size_t bytesSent = send(hClientSocket, recvDatas, sizeof(recvDatas), 0);
+			size_t bytesSent = send(hClientSocket, recvDatas+ accumulBytesSent, recvLen - accumulBytesSent, 0);
 			if (-1 == bytesSent)
 			{
-				ErrorHandling("send() error");
+				__debugbreak();
+				return -1;
 			}
-			totalSizeSent += bytesSent;
+			accumulBytesSent += bytesSent;
 		}
 		// SendAll End
 
@@ -104,11 +112,4 @@ int main(int argc, char* argv[])
 	closesocket(hServerSocket);
 	WSACleanup();
 	return 0;
-}
-
-__declspec(noreturn) void ErrorHandling(const char* message)
-{
-	fputs(message, stderr);
-	fputc('\n', stderr);
-	exit(1);
 }
