@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #include <winsock2.h>
+#include <process.h>
+#include <windows.h>
 
 #pragma comment(lib, "ws2_32.lib")
 #define BUFFER_SIZE 1024
@@ -16,19 +18,29 @@ public:
 
 class MyTCPSocketHandler : public BaseRequestHandler {
 public:
-	MyTCPSocketHandler(int sizeBuffer)	
-		: sizeBuffer_(sizeBuffer)
+	MyTCPSocketHandler()
+		: sizeBuffer_(0),
+		recvDatas_(nullptr)
 	{
-		recvDatas_ = (char*)malloc(sizeBuffer);
-		if (recvDatas_ == nullptr) {
-			__debugbreak();
-			CleanUp();
-			return;
-		}
+
 	}
 	~MyTCPSocketHandler()
 	{
 		CleanUp();
+	}
+
+	bool Initialize(int sizeBuffer)
+	{
+		sizeBuffer_ = sizeBuffer;
+		recvDatas_ = (char*)malloc(sizeBuffer);
+
+		if (recvDatas_ == nullptr) {
+			__debugbreak();
+			CleanUp();
+			return false;
+		}
+
+		return true;
 	}
 
 	void Handle(SOCKET hClientSocket, const sockaddr_in& clientAddress) override {
@@ -87,20 +99,32 @@ private:
 	int sizeBuffer_;
 };
 
+template <typename HandlerType>
 class EchoServer
 {
 public:
-	EchoServer(char host[], unsigned short port, BaseRequestHandler* handler)
+	EchoServer(char host[], unsigned short port, int bufferSize)
 		: host_(host),
 		port_(port),
-		handler_(handler),
+		handler_(nullptr),
 		hServerSocket_(NULL),
 		hClientSocket_(NULL),
 		serverAddress_(),
 		clientAddress_(),
-		sizeClientAddress_(sizeof(SOCKADDR_IN))
-	{	
-		if (WSAStartup(MAKEWORD(2, 2), &wsaData_) != 0)
+		sizeClientAddress_(sizeof(SOCKADDR_IN)),
+		hThread_(nullptr)
+	{
+		handler_ = new HandlerType;
+		
+
+
+		if (handler == nullptr)
+		{
+			__debugbreak();
+			return;
+		}
+
+		if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
 		{
 			__debugbreak();
 			return;
@@ -113,15 +137,15 @@ public:
 
 	void ServeForever(int argc, char* argv[])
 	{
-		hServerSocket_ = socket(PF_INET, SOCK_STREAM, 0);
-		if (hServerSocket_ == INVALID_SOCKET)
+		hServerSocket = socket(PF_INET, SOCK_STREAM, 0);
+		if (hServerSocket == INVALID_SOCKET)
 		{
 			__debugbreak();
 			CleanUp();
 			return;
 		}
 
-		unsigned long hostIP = inet_addr(host_);
+		unsigned long hostIP = inet_addr(host);
 		if (hostIP == INADDR_NONE)
 		{
 			__debugbreak();
@@ -129,14 +153,14 @@ public:
 			return;
 		}
 
-		memset(&serverAddress_, 0, sizeof(serverAddress_));
-		serverAddress_.sin_family = AF_INET;
-		serverAddress_.sin_addr.s_addr = hostIP;
-		serverAddress_.sin_port = htons(port_);
+		memset(&serverAddress, 0, sizeof(serverAddress));
+		serverAddress.sin_family = AF_INET;
+		serverAddress.sin_addr.s_addr = hostIP;
+		serverAddress.sin_port = htons(port);
 
 		try
 		{
-			if (bind(hServerSocket_, (SOCKADDR*)&serverAddress_, sizeof(serverAddress_)) == SOCKET_ERROR)
+			if (bind(hServerSocket, (SOCKADDR*)&serverAddress, sizeof(serverAddress)) == SOCKET_ERROR)
 			{
 				std::cerr << "> bind() failed and program terminated" << std::endl;
 				CleanUp();
@@ -150,7 +174,7 @@ public:
 			return;
 		}
 
-		if (listen(hServerSocket_, 10) == SOCKET_ERROR)
+		if (listen(hServerSocket, 10) == SOCKET_ERROR)
 		{
 			printf("> listen() failed and program terminated\n");
 			CleanUp();
@@ -159,37 +183,43 @@ public:
 
 		while (true)
 		{
-			hClientSocket_ = accept(hServerSocket_, (SOCKADDR*)&clientAddress_, &sizeClientAddress_);
-			if (hClientSocket_ == INVALID_SOCKET)
+			hClientSocket = accept(hServerSocket, (SOCKADDR*)&clientAddress, &sizeClientAddress);
+			if (hClientSocket == INVALID_SOCKET)
 			{
 				__debugbreak();
 				CleanUp();
 				return;
 			}
 
-			if (handler_ == nullptr)
+			if (handler == nullptr)
 			{
 				__debugbreak();
 				CleanUp();
 				return;
 			}
 
-			handler_->Handle(hClientSocket_, clientAddress_);
+			handler->Handle(hClientSocket, clientAddress);
 		}
 	}
 
 	void CleanUp()
 	{
-		if (hClientSocket_ != NULL)
+		if (handler != nullptr)
 		{
-			closesocket(hClientSocket_);
-			hClientSocket_ = NULL;
+			delete handler;
+			handler = nullptr;
 		}
 
-		if (hServerSocket_ != NULL)
+		if (hClientSocket != NULL)
 		{
-			closesocket(hServerSocket_);
-			hServerSocket_ = NULL;
+			closesocket(hClientSocket);
+			hClientSocket = NULL;
+		}
+
+		if (hServerSocket != NULL)
+		{
+			closesocket(hServerSocket);
+			hServerSocket = NULL;
 		}
 		WSACleanup();
 	}
@@ -202,6 +232,8 @@ private:
 	SOCKET hServerSocket_, hClientSocket_;
 	SOCKADDR_IN serverAddress_, clientAddress_;
 	int sizeClientAddress_;
+
+	//HANDLE hThread_;
 };
 
 
@@ -210,14 +242,7 @@ int main(int argc, char* argv[])
 	char host[] = "127.0.0.1";
 	unsigned short port = 65456;
 
-	BaseRequestHandler* handler = new MyTCPSocketHandler(BUFFER_SIZE);
-	if (handler == nullptr)
-	{
-		__debugbreak();
-		return 0;
-	}
-
-	EchoServer* echoServer = new EchoServer(host, port, handler);
+	EchoServer<MyTCPSocketHandler>* echoServer = new EchoServer<MyTCPSocketHandler>(host, port, BUFFER_SIZE);
 	if (echoServer == nullptr)
 	{
 		__debugbreak();
@@ -227,12 +252,6 @@ int main(int argc, char* argv[])
 	printf("> echo - server is activated\n");
 	echoServer->ServeForever(argc, argv);
 	printf("> echo - client is de - activated");
-
-	if (handler != nullptr)
-	{
-		delete handler;
-		handler = nullptr;
-	}
 
 	if (echoServer != nullptr)
 	{
