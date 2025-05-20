@@ -6,29 +6,30 @@
 
 
 #define BUFFER_SIZE 1024
-static char host[] = "127.0.0.1";
-unsigned short port = 65456;
-
 
 class EchoServer
 {
 public:
-	EchoServer()
-		: hServerSocket(NULL),
+	EchoServer(char host[], unsigned short port, int sizeBuffer)
+		: host(host),
+		port(port),
+		sizeBuffer(sizeBuffer),
+		hServerSocket(NULL),
 		hClientSocket(NULL),
+		serverAddress(),
+		clientAddress(),
 		sizeClientAddress(sizeof(SOCKADDR_IN)),
 		recvDatas(nullptr)
 	{
 		if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
 		{
-			printf("WSAStartup() failed");
 			__debugbreak();
 			return;
 		}
 	}
 	~EchoServer()
 	{
-
+		CleanUp();
 	}
 
 	void Run(int argc, char* argv[])
@@ -58,12 +59,14 @@ public:
 		{
 			if (bind(hServerSocket, (SOCKADDR*)&serverAddress, sizeof(serverAddress)) == SOCKET_ERROR)
 			{
-				throw std::runtime_error("inet_addr() error");
+				std::cerr << "> bind() failed and program terminated" << std::endl;
+				CleanUp();
+				return;
 			}
 		}
-		catch (const std::exception& excep)
+		catch (const std::exception& ex)
 		{
-			printf("%s\n", excep.what());
+			std::cerr << "> bind() failed by exception: " << ex.what() << std::endl;
 			CleanUp();
 			return;
 		}
@@ -109,7 +112,7 @@ public:
 			size_t accumulBytesSent = 0;
 			while (accumulBytesSent < recvLen)
 			{
-				size_t bytesSent = send(hClientSocket, recvDatas, sizeof(recvDatas), 0);
+				size_t bytesSent = send(hClientSocket, recvDatas + accumulBytesSent, recvLen - accumulBytesSent, 0);
 				if (-1 == bytesSent)
 				{
 					__debugbreak();
@@ -122,7 +125,6 @@ public:
 
 			if (strcmp(recvDatas, "quit") == 0)
 			{
-				__debugbreak();
 				CleanUp();
 				return;
 			}
@@ -131,24 +133,30 @@ public:
 
 	void CleanUp()
 	{
-		if (recvDatas != nullptr)
+		if (recvDatas != NULL)
 		{
 			free(recvDatas);
+			recvDatas = NULL;
 		}
 
 		if (hClientSocket != NULL)
 		{
 			closesocket(hClientSocket);
+			hClientSocket = NULL;
 		}
 
 		if (hServerSocket != NULL)
 		{
 			closesocket(hServerSocket);
+			hServerSocket = NULL;
 		}
 		WSACleanup();
 	}
 
 private:
+	const char* host;
+	const unsigned short port;
+	int sizeBuffer;
 	WSADATA	wsaData;
 	SOCKET hServerSocket, hClientSocket;
 	SOCKADDR_IN serverAddress, clientAddress;
@@ -159,7 +167,10 @@ private:
 
 int main(int argc, char* argv[])
 {
-	EchoServer* echoServer = new EchoServer;
+	char host[] = "127.0.0.1";
+	unsigned short port = 65456;
+
+	EchoServer* echoServer = new EchoServer(host, port, BUFFER_SIZE);
 	if (echoServer == nullptr)
 	{
 		__debugbreak();
@@ -169,6 +180,15 @@ int main(int argc, char* argv[])
 	printf("> echo - server is activated\n");
 	echoServer->Run(argc, argv);
 	printf("> echo - client is de - activated");
+
+
+	if (echoServer != nullptr)
+	{
+		echoServer->CleanUp();
+		delete echoServer;
+		echoServer = nullptr;
+	}
+	
 
 	return 0;
 }
