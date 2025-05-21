@@ -6,96 +6,118 @@
 #include <ws2tcpip.h>
 #include <process.h>
 #include <Windows.h>
-#include <map>
-#include <memory>
-#include <mutex>
+
 
 #pragma comment(lib, "ws2_32.lib")
 #define BUFFER_SIZE 1024
 
+
 class BaseRequestHandler
 {
 public:
-	virtual unsigned int Handle(SOCKET hClientSocket, const sockaddr_in& clientAddress) = 0;
+	BaseRequestHandler()
+		: hClientSocket_(INVALID_SOCKET),
+		clientAddress_()
+	{
+	}
+
 	virtual ~BaseRequestHandler() = default;
+
+	void Init(SOCKET hClientSocket, SOCKADDR_IN clientAddress)
+	{
+		hClientSocket_ = hClientSocket;
+		clientAddress_ = clientAddress;
+	}
+
+	virtual unsigned int Handle() = 0;
+
+	static unsigned __stdcall ThreadEntry(void* arg) {
+		BaseRequestHandler* requestHandler = static_cast<BaseRequestHandler*>(arg);
+		requestHandler->Handle();
+		return 0;
+	}
+
+protected:
+	SOCKET hClientSocket_;
+	SOCKADDR_IN clientAddress_;
 };
 
 class MyTCPSocketHandler : public BaseRequestHandler {
 public:
-	MyTCPSocketHandler(int sizeBuffer)
-		: sizeBuffer_(sizeBuffer)
-	{
-		recvDatas_ = std::make_unique<char[]>(sizeBuffer_);
+	MyTCPSocketHandler() {
+		recvDatas_ = new char[BUFFER_SIZE];
 	}
-	~MyTCPSocketHandler() = default;
 
-	unsigned int Handle(SOCKET hClientSocket, const sockaddr_in& clientAddress) override {
-		char ipStr[INET_ADDRSTRLEN];
-		inet_ntop(AF_INET, &(clientAddress.sin_addr), ipStr, INET_ADDRSTRLEN);
+	~MyTCPSocketHandler() {
+	}
 
-		printf("> client connected by IP address %s with Port number %u\n", ipStr, ntohs(clientAddress.sin_port));
+	unsigned int Handle() override {
+		printf("> client connected by IP address %s with Port number %u\n", inet_ntoa(clientAddress_.sin_addr), ntohs(clientAddress_.sin_port));
 
 		while (true)
 		{
-			memset(recvDatas_.get(), 0, sizeBuffer_);
-			int recvLen = recv(hClientSocket, recvDatas_.get(), sizeBuffer_ - 1, 0);
-			if (recvLen == 0) {
-				printf("> client disconnected\n");
-				break;
+			if (recvDatas_ == nullptr)
+			{
+				__debugbreak();
+				CleanUp();
+				return 0;
 			}
-			if (recvLen < 0) {
-				printf("> recv() failed\n");
-				break;
+			memset(recvDatas_, 0, BUFFER_SIZE);
+			const int recvLen = recv(hClientSocket_, recvDatas_, BUFFER_SIZE, 0);
+			if (recvLen == -1)
+			{
+				__debugbreak();
+				CleanUp();
+				return 0;
 			}
 
-			recvDatas_.get()[recvLen] = '\0';
-			printf("> echoed: %s\n", recvDatas_.get());
+			printf("> echoed: %s\n", recvDatas_);
 
-			// SendAll
+			// SendAll Start
 			int accumulBytesSent = 0;
 			while (accumulBytesSent < recvLen)
 			{
-				int bytesSent = send(hClientSocket, recvDatas_.get() + accumulBytesSent, recvLen - accumulBytesSent, 0);
-				if (bytesSent == SOCKET_ERROR)
+				int bytesSent = send(hClientSocket_, recvDatas_ + accumulBytesSent, recvLen - accumulBytesSent, 0);
+				if (bytesSent == -1)
 				{
-					printf("> send() failed\n");
-					return -1;
+					__debugbreak();
+					return 0;
 				}
 				accumulBytesSent += bytesSent;
 			}
+			// SendAll End
 
-			if (strcmp(recvDatas_.get(), "quit") == 0)
+			if (strcmp(recvDatas_, "quit") == 0)
 			{
 				break;
 			}
 		}
-		return 0;
+
+		return 1;
 	}
 
-private:
-	std::unique_ptr<char[]> recvDatas_;
-	int sizeBuffer_;
-};
+	void CleanUp()
+	{
+		if (recvDatas_ != nullptr)
+		{
+			delete[] recvDatas_;
+			recvDatas_ = nullptr;
+		}
 
-// 스레드 파라미터 구조체
-struct ThreadParams {
-	//EchoServer* server_;
-	//unsigned int threadId_;
-	SOCKET clientSocket_;
-	sockaddr_in clientAddress_;
-	BaseRequestHandler* handler_;
+	}
+private:
+	char* recvDatas_;
 };
 
 template<typename HandlerType>
 class EchoServer
 {
 public:
-	EchoServer(const char* host, unsigned short port, int sizeBuffer)
+	EchoServer(const char* host, unsigned short port)
 		: host_(host),
 		port_(port),
-		handler_(nullptr),
 		hServerSocket_(INVALID_SOCKET),
-		sizeBuffer_(sizeBuffer)
+		serverAddress_()
 	{
 		if (WSAStartup(MAKEWORD(2, 2), &wsaData_) != 0)
 		{
@@ -156,74 +178,30 @@ public:
 				continue;
 			}
 
-			ThreadParams* params = new ThreadParams;
-			//params->server_ = this;
-			params->clientSocket_ = clientSocket;
-			params->clientAddress_ = clientAddress;
-			params->handler_;
-			//params->threadId_;
 
-			unsigned int threadId = 0;
-			HANDLE hThread = (HANDLE)_beginthreadex(NULL, 0, EchoServer::ThreadFunc, params, 0, &threadId);
-
-			if (hThread == 0)
+			BaseRequestHandler* requestHandler = new HandlerType;
+			if (requestHandler == nullptr)
 			{
-				printf("> _beginthreadex() failed\n");
-				closesocket(clientSocket);
-				delete params;
-				continue;
+				printf("> requestHandler create failed\n");
+				throw std::runtime_error("");
 			}
+			requestHandler->Init(clientSocket, clientAddress);
 
-			{
-				std::lock_guard<std::mutex> lock(threadMapMutex_);
-				threads_[threadId] = hThread;
+			HANDLE threadHandle = INVALID_HANDLE_VALUE;
+			threadHandle = (HANDLE)_beginthreadex(NULL, 0, &BaseRequestHandler::ThreadEntry, requestHandler, 0, NULL);
+
+			if (threadHandle == 0) {
+				printf("Failed to create thread\n");
+				delete requestHandler;
 			}
-		}
-	}
-
-	static unsigned int __stdcall ThreadFunc(void* param)
-	{
-		std::unique_ptr<ThreadParams> params(static_cast<ThreadParams*>(param));
-		if (!params || !params->handler_ || !params->server_)
-		{
-			_endthreadex(-1);
-			return -1;
-		}
-
-		unsigned int retCode = params->handler_->Handle(params->clientSocket_, params->clientAddress_);
-		closesocket(params->clientSocket_);
-
-		
-		params->server_->RemoveThread(params->threadId_);
-
-		_endthreadex(retCode);
-		return retCode;
-	}
-
-	void RemoveThread(unsigned int threadId)
-	{
-		std::lock_guard<std::mutex> lock(threadMapMutex_);
-		auto it = threads_.find(threadId);
-		if (it != threads_.end())
-		{
-			WaitForSingleObject(it->second, INFINITE);
-			CloseHandle(it->second);
-			threads_.erase(it);
+			else {
+				CloseHandle(threadHandle);
+			}
 		}
 	}
 
 	void CleanUp()
 	{
-		{
-			std::lock_guard<std::mutex> lock(threadMapMutex_);
-			for (auto& th : threads_)
-			{
-				WaitForSingleObject(th.second, INFINITE);
-				CloseHandle(th.second);
-			}
-			threads_.clear();
-		}
-
 		if (hServerSocket_ != INVALID_SOCKET)
 		{
 			closesocket(hServerSocket_);
@@ -235,11 +213,9 @@ public:
 private:
 	const char* host_;
 	const unsigned short port_;
-	//BaseRequestHandler* handler_;
 	WSADATA wsaData_;
 	SOCKET hServerSocket_;
 	SOCKADDR_IN serverAddress_;
-	int sizeBuffer_;
 };
 
 int main()
