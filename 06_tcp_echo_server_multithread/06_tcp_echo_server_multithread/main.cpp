@@ -3,8 +3,12 @@
 #include <stdlib.h>
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #include <winsock2.h>
+#include <ws2tcpip.h>
 #include <process.h>
-#include <windows.h>
+#include <Windows.h>
+#include <map>
+#include <memory>
+#include <mutex>
 
 #pragma comment(lib, "ws2_32.lib")
 #define BUFFER_SIZE 1024
@@ -12,122 +16,91 @@
 class BaseRequestHandler
 {
 public:
-	virtual void Handle(SOCKET hClientSocket, const sockaddr_in& clientAddress) = 0;
+	virtual unsigned int Handle(SOCKET hClientSocket, const sockaddr_in& clientAddress) = 0;
 	virtual ~BaseRequestHandler() = default;
 };
 
 class MyTCPSocketHandler : public BaseRequestHandler {
 public:
-	MyTCPSocketHandler()
-		: sizeBuffer_(0),
-		recvDatas_(nullptr)
+	MyTCPSocketHandler(int sizeBuffer)
+		: sizeBuffer_(sizeBuffer)
 	{
-
+		recvDatas_ = std::make_unique<char[]>(sizeBuffer_);
 	}
-	~MyTCPSocketHandler()
-	{
-		CleanUp();
-	}
+	~MyTCPSocketHandler() = default;
 
-	bool Initialize(int sizeBuffer)
-	{
-		sizeBuffer_ = sizeBuffer;
-		recvDatas_ = (char*)malloc(sizeBuffer);
+	unsigned int Handle(SOCKET hClientSocket, const sockaddr_in& clientAddress) override {
+		char ipStr[INET_ADDRSTRLEN];
+		inet_ntop(AF_INET, &(clientAddress.sin_addr), ipStr, INET_ADDRSTRLEN);
 
-		if (recvDatas_ == nullptr) {
-			__debugbreak();
-			CleanUp();
-			return false;
-		}
-
-		return true;
-	}
-
-	void Handle(SOCKET hClientSocket, const sockaddr_in& clientAddress) override {
-		printf("> client connected by IP address %s with Port number %u\n", inet_ntoa(clientAddress.sin_addr), ntohs(clientAddress.sin_port));
+		printf("> client connected by IP address %s with Port number %u\n", ipStr, ntohs(clientAddress.sin_port));
 
 		while (true)
 		{
-			if (recvDatas_ == nullptr)
-			{
-				__debugbreak();
-				CleanUp();
-				return;
+			memset(recvDatas_.get(), 0, sizeBuffer_);
+			int recvLen = recv(hClientSocket, recvDatas_.get(), sizeBuffer_ - 1, 0);
+			if (recvLen == 0) {
+				printf("> client disconnected\n");
+				break;
 			}
-			memset(recvDatas_, 0, BUFFER_SIZE);
-			const int recvLen = recv(hClientSocket, recvDatas_, BUFFER_SIZE, 0);
-			if (recvLen == -1)
-			{
-				__debugbreak();
-				CleanUp();
-				return;
+			if (recvLen < 0) {
+				printf("> recv() failed\n");
+				break;
 			}
 
-			printf("> echoed: %s\n", recvDatas_);
+			recvDatas_.get()[recvLen] = '\0';
+			printf("> echoed: %s\n", recvDatas_.get());
 
-			// SendAll Start
+			// SendAll
 			int accumulBytesSent = 0;
 			while (accumulBytesSent < recvLen)
 			{
-				int bytesSent = send(hClientSocket, recvDatas_ + accumulBytesSent, recvLen - accumulBytesSent, 0);
-				if (bytesSent == -1)
+				int bytesSent = send(hClientSocket, recvDatas_.get() + accumulBytesSent, recvLen - accumulBytesSent, 0);
+				if (bytesSent == SOCKET_ERROR)
 				{
-					__debugbreak();
-					return;
+					printf("> send() failed\n");
+					return -1;
 				}
 				accumulBytesSent += bytesSent;
 			}
-			// SendAll End
 
-			if (strcmp(recvDatas_, "quit") == 0)
+			if (strcmp(recvDatas_.get(), "quit") == 0)
 			{
-				return;
+				break;
 			}
 		}
+		return 0;
 	}
 
-	void CleanUp()
-	{
-		if (recvDatas_ != NULL)
-		{
-			free(recvDatas_);
-			recvDatas_ = NULL;
-		}
-	}
 private:
-	char* recvDatas_;
+	std::unique_ptr<char[]> recvDatas_;
 	int sizeBuffer_;
 };
 
-template <typename HandlerType>
+// 스레드 파라미터 구조체
+struct ThreadParams {
+	//EchoServer* server_;
+	//unsigned int threadId_;
+	SOCKET clientSocket_;
+	sockaddr_in clientAddress_;
+	BaseRequestHandler* handler_;
+};
+
+template<typename HandlerType>
 class EchoServer
 {
 public:
-	EchoServer(char host[], unsigned short port, int bufferSize)
+	EchoServer(const char* host, unsigned short port, int sizeBuffer)
 		: host_(host),
 		port_(port),
 		handler_(nullptr),
-		hServerSocket_(NULL),
-		hClientSocket_(NULL),
-		serverAddress_(),
-		clientAddress_(),
-		sizeClientAddress_(sizeof(SOCKADDR_IN)),
-		hThread_(nullptr)
+		hServerSocket_(INVALID_SOCKET),
+		sizeBuffer_(sizeBuffer)
 	{
-		handler_ = new HandlerType;
-		
-
-
-		if (handler == nullptr)
+		if (WSAStartup(MAKEWORD(2, 2), &wsaData_) != 0)
 		{
 			__debugbreak();
-			return;
-		}
-
-		if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
-		{
-			__debugbreak();
-			return;
+			printf("WSAStartup failed\n");
 		}
 	}
 	~EchoServer()
@@ -135,91 +108,126 @@ public:
 		CleanUp();
 	}
 
-	void ServeForever(int argc, char* argv[])
+	void ServeForever()
 	{
-		hServerSocket = socket(PF_INET, SOCK_STREAM, 0);
-		if (hServerSocket == INVALID_SOCKET)
+		hServerSocket_ = socket(PF_INET, SOCK_STREAM, 0);
+		if (hServerSocket_ == INVALID_SOCKET)
 		{
-			__debugbreak();
+			printf("> socket() failed\n");
 			CleanUp();
 			return;
 		}
 
-		unsigned long hostIP = inet_addr(host);
+		unsigned long hostIP = inet_addr(host_);
 		if (hostIP == INADDR_NONE)
 		{
-			__debugbreak();
+			printf("> Invalid IP address\n");
 			CleanUp();
 			return;
 		}
 
-		memset(&serverAddress, 0, sizeof(serverAddress));
-		serverAddress.sin_family = AF_INET;
-		serverAddress.sin_addr.s_addr = hostIP;
-		serverAddress.sin_port = htons(port);
+		memset(&serverAddress_, 0, sizeof(serverAddress_));
+		serverAddress_.sin_family = AF_INET;
+		serverAddress_.sin_addr.s_addr = hostIP;
+		serverAddress_.sin_port = htons(port_);
 
-		try
+		if (bind(hServerSocket_, (SOCKADDR*)&serverAddress_, sizeof(serverAddress_)) == SOCKET_ERROR)
 		{
-			if (bind(hServerSocket, (SOCKADDR*)&serverAddress, sizeof(serverAddress)) == SOCKET_ERROR)
-			{
-				std::cerr << "> bind() failed and program terminated" << std::endl;
-				CleanUp();
-				return;
-			}
-		}
-		catch (const std::exception& ex)
-		{
-			std::cerr << "> bind() failed by exception: " << ex.what() << std::endl;
+			printf("> bind() failed\n");
 			CleanUp();
 			return;
 		}
 
-		if (listen(hServerSocket, 10) == SOCKET_ERROR)
+		if (listen(hServerSocket_, 10) == SOCKET_ERROR)
 		{
-			printf("> listen() failed and program terminated\n");
+			printf("> listen() failed\n");
 			CleanUp();
 			return;
 		}
 
 		while (true)
 		{
-			hClientSocket = accept(hServerSocket, (SOCKADDR*)&clientAddress, &sizeClientAddress);
-			if (hClientSocket == INVALID_SOCKET)
+			sockaddr_in clientAddress;
+			int sizeClientAddress = sizeof(clientAddress);
+			SOCKET clientSocket = accept(hServerSocket_, (SOCKADDR*)&clientAddress, &sizeClientAddress);
+			if (clientSocket == INVALID_SOCKET)
 			{
-				__debugbreak();
-				CleanUp();
-				return;
+				printf("> accept() failed\n");
+				continue;
 			}
 
-			if (handler == nullptr)
+			ThreadParams* params = new ThreadParams;
+			//params->server_ = this;
+			params->clientSocket_ = clientSocket;
+			params->clientAddress_ = clientAddress;
+			params->handler_;
+			//params->threadId_;
+
+			unsigned int threadId = 0;
+			HANDLE hThread = (HANDLE)_beginthreadex(NULL, 0, EchoServer::ThreadFunc, params, 0, &threadId);
+
+			if (hThread == 0)
 			{
-				__debugbreak();
-				CleanUp();
-				return;
+				printf("> _beginthreadex() failed\n");
+				closesocket(clientSocket);
+				delete params;
+				continue;
 			}
 
-			handler->Handle(hClientSocket, clientAddress);
+			{
+				std::lock_guard<std::mutex> lock(threadMapMutex_);
+				threads_[threadId] = hThread;
+			}
+		}
+	}
+
+	static unsigned int __stdcall ThreadFunc(void* param)
+	{
+		std::unique_ptr<ThreadParams> params(static_cast<ThreadParams*>(param));
+		if (!params || !params->handler_ || !params->server_)
+		{
+			_endthreadex(-1);
+			return -1;
+		}
+
+		unsigned int retCode = params->handler_->Handle(params->clientSocket_, params->clientAddress_);
+		closesocket(params->clientSocket_);
+
+		
+		params->server_->RemoveThread(params->threadId_);
+
+		_endthreadex(retCode);
+		return retCode;
+	}
+
+	void RemoveThread(unsigned int threadId)
+	{
+		std::lock_guard<std::mutex> lock(threadMapMutex_);
+		auto it = threads_.find(threadId);
+		if (it != threads_.end())
+		{
+			WaitForSingleObject(it->second, INFINITE);
+			CloseHandle(it->second);
+			threads_.erase(it);
 		}
 	}
 
 	void CleanUp()
 	{
-		if (handler != nullptr)
 		{
-			delete handler;
-			handler = nullptr;
+			std::lock_guard<std::mutex> lock(threadMapMutex_);
+			for (auto& th : threads_)
+			{
+				WaitForSingleObject(th.second, INFINITE);
+				CloseHandle(th.second);
+			}
+			threads_.clear();
 		}
 
-		if (hClientSocket != NULL)
+		if (hServerSocket_ != INVALID_SOCKET)
 		{
-			closesocket(hClientSocket);
-			hClientSocket = NULL;
-		}
-
-		if (hServerSocket != NULL)
-		{
-			closesocket(hServerSocket);
-			hServerSocket = NULL;
+			closesocket(hServerSocket_);
+			hServerSocket_ = INVALID_SOCKET;
 		}
 		WSACleanup();
 	}
@@ -227,22 +235,19 @@ public:
 private:
 	const char* host_;
 	const unsigned short port_;
-	BaseRequestHandler* handler_;
-	WSADATA	wsaData_;
-	SOCKET hServerSocket_, hClientSocket_;
-	SOCKADDR_IN serverAddress_, clientAddress_;
-	int sizeClientAddress_;
-
-	//HANDLE hThread_;
+	//BaseRequestHandler* handler_;
+	WSADATA wsaData_;
+	SOCKET hServerSocket_;
+	SOCKADDR_IN serverAddress_;
+	int sizeBuffer_;
 };
 
-
-int main(int argc, char* argv[])
+int main()
 {
-	char host[] = "127.0.0.1";
-	unsigned short port = 65456;
+	const char* host = "127.0.0.1";
+	const unsigned short port = 65456;
 
-	EchoServer<MyTCPSocketHandler>* echoServer = new EchoServer<MyTCPSocketHandler>(host, port, BUFFER_SIZE);
+	EchoServer<MyTCPSocketHandler>* echoServer = new EchoServer<MyTCPSocketHandler>(host, port);
 	if (echoServer == nullptr)
 	{
 		__debugbreak();
@@ -250,14 +255,14 @@ int main(int argc, char* argv[])
 	}
 
 	printf("> echo - server is activated\n");
-	echoServer->ServeForever(argc, argv);
-	printf("> echo - client is de - activated");
-
-	if (echoServer != nullptr)
-	{
-		delete echoServer;
-		echoServer = nullptr;
+	try {
+		echoServer->ServeForever();
 	}
+	catch (const std::exception& ex) {
+		std::cerr << "Exception: " << ex.what() << std::endl;
+	}
+	printf("> echo - server is de-activated\n");
 
+	delete echoServer;
 	return 0;
 }
