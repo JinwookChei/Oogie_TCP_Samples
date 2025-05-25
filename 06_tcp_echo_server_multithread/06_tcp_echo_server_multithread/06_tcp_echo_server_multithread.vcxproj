@@ -132,6 +132,7 @@
     <ClCompile Include="BaseRequestHandler.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="MyTCPSocketHandler.cpp" />
+    <ClCompile Include="MyThread.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Use</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Use</PrecompiledHeader>
@@ -141,6 +142,7 @@
     <ClInclude Include="BaseRequestHandler.h" />
     <ClInclude Include="EchoServer.h" />
     <ClInclude Include="MyTCPSocketHandler.h" />
+    <ClInclude Include="MyThread.h" />
     <ClInclude Include="stdafx.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

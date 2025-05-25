@@ -75,7 +75,6 @@ public:
 			if (clientSocket == INVALID_SOCKET)
 			{
 				printf("> accept() failed\n");
-				closesocket(clientSocket);
 				DEBUG_BREAK();
 				continue;
 			}
@@ -84,7 +83,10 @@ public:
 			if (requestHandler == nullptr)
 			{
 				printf("> requestHandler create failed\n");
-				closesocket(clientSocket);
+				if (clientSocket != INVALID_SOCKET)
+				{
+					closesocket(clientSocket);
+				}
 				DEBUG_BREAK();
 				continue;
 			}
@@ -96,13 +98,15 @@ public:
 				{
 					delete requestHandler;
 				}
-				closesocket(clientSocket);
+				if(clientSocket != INVALID_SOCKET)
+				{
+					closesocket(clientSocket);
+				}
 				DEBUG_BREAK();
 				continue;
 			}
 
-			HANDLE threadHandle = INVALID_HANDLE_VALUE;
-			threadHandle = (HANDLE)_beginthreadex(NULL, 0, &BaseRequestHandler::ThreadEntry, requestHandler, 0, NULL);
+			unsigned __int64  threadHandle = _beginthreadex(NULL, 0, &BaseRequestHandler::ThreadEntry, requestHandler, 0, NULL);
 			if (threadHandle == 0) {
 				
 				printf("Failed to create thread\n");
@@ -110,7 +114,10 @@ public:
 				{
 					delete requestHandler;
 				}
-				closesocket(clientSocket);
+				if (clientSocket != INVALID_SOCKET)
+				{
+					closesocket(clientSocket);
+				}
 				DEBUG_BREAK();
 				continue;
 			}

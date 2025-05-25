@@ -8,6 +8,8 @@
 #include <ws2tcpip.h>
 #include <process.h>
 #include <Windows.h>
+#include <vector>
+#include <functional>
 
 #pragma comment(lib, "ws2_32.lib")
 

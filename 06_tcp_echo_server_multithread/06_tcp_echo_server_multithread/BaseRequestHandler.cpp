@@ -29,6 +29,7 @@ unsigned __stdcall BaseRequestHandler::ThreadEntry(void* arg)
 	BaseRequestHandler* requestHandler = static_cast<BaseRequestHandler*>(arg);
 	requestHandler->Handle();
 	requestHandler->Exit();
+
 	return 0;
 }
 
