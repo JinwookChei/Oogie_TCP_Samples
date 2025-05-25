@@ -5,7 +5,8 @@
 #pragma comment(lib, "ws2_32.lib")
 
 #define BUFFER_SIZE 1024
-static char host[] = "127.0.0.1";
+//static char host[] = "127.0.0.1";
+static char host[] = "172.30.1.92";
 unsigned short port = 65456;
 
 
