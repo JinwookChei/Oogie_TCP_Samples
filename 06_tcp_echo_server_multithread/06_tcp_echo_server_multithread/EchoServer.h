@@ -26,24 +26,24 @@ public:
 		CleanUp();
 	}
 
-	void ServeForever()
+	unsigned int ServeForever()
 	{
 		hServerSocket_ = socket(PF_INET, SOCK_STREAM, 0);
 		if (hServerSocket_ == INVALID_SOCKET)
 		{
+			printf("> socket() failed\n");
 			DEBUG_BREAK();
 			CleanUp();
-			throw std::runtime_error("> socket() failed");
-			return;
+			return 0;
 		}
 
 		unsigned long hostIP = inet_addr(host_);
 		if (hostIP == INADDR_NONE)
 		{
+			printf("> Invalid IP address\n");
 			DEBUG_BREAK();
 			CleanUp();
-			throw std::runtime_error("> Invalid IP address");
-			return;
+			return 0;
 		}
 
 		memset(&serverAddress_, 0, sizeof(serverAddress_));
@@ -53,18 +53,18 @@ public:
 
 		if (bind(hServerSocket_, (SOCKADDR*)&serverAddress_, sizeof(serverAddress_)) == SOCKET_ERROR)
 		{
+			printf("> bind() failed\n");
 			DEBUG_BREAK();
 			CleanUp();
-			throw std::runtime_error("> bind() failed");
-			return;
+			return 0;
 		}
 
 		if (listen(hServerSocket_, 10) == SOCKET_ERROR)
 		{
+			printf("> listen() failed\n");
 			DEBUG_BREAK();
 			CleanUp();
-			throw std::runtime_error("> listen() failed");
-			return;
+			return 0;
 		}
 
 		while (true)
@@ -122,6 +122,8 @@ public:
 				continue;
 			}
 		}
+
+		return 1;
 	}
 
 	void CleanUp()
@@ -140,7 +142,5 @@ private:
 	WSADATA wsaData_;
 	SOCKET hServerSocket_;
 	SOCKADDR_IN serverAddress_;
-
-	//std::map<int, BaseRequestHandler> clients_;
 };
 

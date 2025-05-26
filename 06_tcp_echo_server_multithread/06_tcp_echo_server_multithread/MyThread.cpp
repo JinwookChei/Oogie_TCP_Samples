@@ -1,91 +1,125 @@
 #include "stdafx.h"
+#include <windows.h>
+#include <process.h>
+#include <stdio.h>
 #include "MyThread.h"
 
-unsigned int MyThread::threadCount = 0;
+unsigned int MyThread::activeCount = 0;
 
-MyThread::MyThread(std::function<void()> job)
-	:threadName_(0),
-	threadId_(0),
-	handle_(0),
-	job_(job)
+unsigned int MyThread::threadNum = 0;
+
+HANDLE MyThread::hMutex = NULL;
+
+MyThread::MyThread(std::function<unsigned int()> func)
+    : hThread_(nullptr),
+    threadId_(0),
+    threadFunc_(func)
 {
-	_CreateMutex();
+    ++threadNum;
+    const size_t bufSize = 32;
+    threadName_ = new char[bufSize];
+    snprintf(threadName_, bufSize, "thread-%u", threadNum);
+
+    if (hMutex == NULL)
+    {
+        hMutex = CreateMutex(NULL, FALSE, NULL);
+        if (!hMutex)
+        {
+            return;
+        }
+    }
 }
 
 MyThread::~MyThread()
 {
-	// TODO : 만약 마지막 쓰레드면 뮤텍스도 삭제해야함.
+    CleanUp();
 
-	Shutdown();
+    if (activeCount == 0 && hMutex != NULL) {
+        CloseHandle(hMutex);
+        hMutex = NULL;
+    }
 }
 
-bool MyThread::_CreateMutex()
+unsigned int MyThread::ActiveCount()
 {
-	if (hMutex != nullptr)
-	{
-		return false;
-	}
-
-	MyThread::hMutex = CreateMutex(NULL, FALSE, NULL);
-	if (MyThread::hMutex == NULL)
-	{
-		DEBUG_BREAK();
-		return false;
-	}
-
-	return true;
+    return activeCount;
 }
 
 void MyThread::Start()
 {
-	unsigned int threadId = 0;	
-	handle_ = (HANDLE)_beginthreadex(nullptr, 0, MyThread::ThreadFunc, this, 0, &threadId_);
-	if (handle_ == 0)
-	{
-		DEBUG_BREAK();
-		return;
-	}
+    hThread_ = (HANDLE)_beginthreadex(NULL, 0, MyThread::ThreadProc, this, 0, &threadId_);
+    if (hThread_ == NULL)
+    {
+        return;
+    }
+
+    MyThread::Lock();
+    ++MyThread::activeCount;
+    MyThread::Unlock();
 }
 
-void MyThread::Shutdown()
+void MyThread::Join()
 {
-	WaitForSingleObject(handle_, INFINITE);
-
-	CloseHandle(hMutex);
-	CloseHandle(handle_);
+    if (hThread_ != NULL) {
+        WaitForSingleObject(hThread_, INFINITE);
+        CloseHandle(hThread_);
+        hThread_ = NULL;
+    }
 }
 
-unsigned int MyThread::GetThreadName() const
+void MyThread::Lock()
 {
-	return threadName_;
+    if (hMutex != NULL) {
+        WaitForSingleObject(hMutex, INFINITE);
+    }
 }
 
-unsigned int __stdcall MyThread::ThreadFunc(void* myThreadPointer)
+void MyThread::Unlock()
 {
-	MyThread* myThreadPtr = (MyThread*)myThreadPointer;
-	if (myThreadPtr == nullptr)
-	{
-		_endthreadex(-1);
-		return -1;
-	}
-	
-	if (myThreadPtr->job_ == false)
-	{
-		_endthreadex(-1);
-		return -1;
-	}
-
-	// MUTEX
-	WaitForSingleObject(myThreadPtr->hMutex, INFINITE);
-	threadsInfo.push_back(myThreadPtr);
-	myThreadPtr->threadName_ = threadCount;
-	++threadCount;
-	ReleaseMutex(myThreadPtr->hMutex);
-	// MUTEX END
-
-	myThreadPtr->job_();
-
-	return 0;
+    if (hMutex != NULL) {
+        ReleaseMutex(hMutex);
+    }
 }
 
+char* MyThread::GetThreadName() const
+{
+    return threadName_;
+}
 
+void MyThread::CleanUp()
+{
+    if (threadName_ != nullptr)
+    {
+        delete[] threadName_;
+        threadName_ = nullptr;
+    }
+
+    if (hThread_ != NULL)
+    {
+        CloseHandle(hThread_);
+        hThread_ = NULL;
+    }
+}
+
+unsigned __stdcall MyThread::ThreadProc(void* param)
+{
+    unsigned ret = 0;
+    MyThread* pThisThread = static_cast<MyThread*>(param);
+    if (pThisThread != nullptr)
+    {
+        ret = pThisThread->threadFunc_();
+    }
+    else
+    {
+        DEBUG_BREAK();
+        ret = 0;
+    }
+    
+    pThisThread->Lock();
+    --MyThread::activeCount;
+    pThisThread->Unlock();
+
+    _endthreadex(0);
+
+    return ret;
+}

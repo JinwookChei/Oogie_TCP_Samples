@@ -1,38 +1,44 @@
 #pragma once
 
 
-class MyThread
-{
+class MyThread {
 public:
-	MyThread(std::function<void()> job);
-	virtual ~MyThread();
+    MyThread(std::function<unsigned int()> func);
 
-	static bool _CreateMutex();
+    virtual ~MyThread();
 
-	void Start();
+    static unsigned int ActiveCount();
 
-	void Shutdown();
+    void Start();
 
-	unsigned int GetThreadName() const;
+    void Join();
+
+    void Lock();
+
+    void Unlock();
+
+    char* GetThreadName() const;
+
+protected:
+    //virtual unsigned Run() = 0;
+        
+    void CleanUp();
 
 private:
-	static unsigned int __stdcall ThreadFunc(void* myThreadPointer);
+    static unsigned __stdcall ThreadProc(void* param);
 
 private:
-	static HANDLE hMutex;
+    static HANDLE hMutex;
 
-	static std::vector<MyThread*> threadsInfo;
+    static unsigned int activeCount;
 
-	static unsigned int threadCount;
+    static unsigned int threadNum;
 
-	unsigned int threadName_;
+    HANDLE hThread_;
 
-	unsigned int threadId_;
+    unsigned int threadId_;
 
-	HANDLE handle_;
-	
-	std::function<void()> job_;
+    char* threadName_;
 
-	
+    std::function<unsigned int()> threadFunc_;
 };
-
