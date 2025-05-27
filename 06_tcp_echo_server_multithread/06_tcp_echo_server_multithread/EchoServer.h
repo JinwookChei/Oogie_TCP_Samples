@@ -1,12 +1,24 @@
 #pragma once
+#include "stdafx.h"
 #include "BaseRequestHandler.h"
-#include <map>
+#include "MyThread.h"
 
+
+class BaseRequestHandler;
+
+struct ClientInfo
+{
+	SOCKET clientSocket_;
+	sockaddr_in clientAddress_;
+	BaseRequestHandler* handler_;
+	MyThread* thread_;
+};
 
 template<typename HandlerType>
 class EchoServer
 {
-	friend BaseRequestHandler;
+	static_assert(std::is_base_of<BaseRequestHandler, HandlerType>::value, "HandlerType must inherit from BaseRequestHandler");
+
 public:
 	EchoServer(const char* host, unsigned short port)
 		: host_(host),
@@ -14,6 +26,7 @@ public:
 		hServerSocket_(INVALID_SOCKET),
 		serverAddress_()
 	{
+
 		if (WSAStartup(MAKEWORD(2, 2), &wsaData_) != 0)
 		{
 			DEBUG_BREAK();
@@ -79,13 +92,15 @@ public:
 				continue;
 			}
 
-			BaseRequestHandler* requestHandler = new HandlerType;
+			HandlerType* handler = new HandlerType;
+			BaseRequestHandler* requestHandler = dynamic_cast<BaseRequestHandler*>(handler);
 			if (requestHandler == nullptr)
 			{
-				printf("> requestHandler create failed\n");
+				printf("> requesthandler create failed\n");
 				if (clientSocket != INVALID_SOCKET)
 				{
 					closesocket(clientSocket);
+					clientSocket = NULL;
 				}
 				DEBUG_BREAK();
 				continue;
@@ -93,41 +108,73 @@ public:
 
 			if (requestHandler->Init(clientSocket, clientAddress) == false)
 			{
-				printf("> requestHandler Init failed\n");
+				printf("> requesthandler init failed\n");
 				if (requestHandler != nullptr)
 				{
 					delete requestHandler;
+					requestHandler = nullptr;
 				}
 				if(clientSocket != INVALID_SOCKET)
 				{
 					closesocket(clientSocket);
+					clientSocket = NULL;
 				}
 				DEBUG_BREAK();
 				continue;
 			}
 
-			unsigned __int64  threadHandle = _beginthreadex(NULL, 0, &BaseRequestHandler::ThreadEntry, requestHandler, 0, NULL);
-			if (threadHandle == 0) {
-				
-				printf("Failed to create thread\n");
+			MyThread* newThread = new MyThread(std::bind(&BaseRequestHandler::Handle, requestHandler));
+			if (newThread == nullptr)
+			{
+				printf("failed to create thread\n");
 				if (requestHandler != nullptr)
 				{
 					delete requestHandler;
+					requestHandler = nullptr;
 				}
 				if (clientSocket != INVALID_SOCKET)
 				{
 					closesocket(clientSocket);
+					clientSocket = NULL;
 				}
 				DEBUG_BREAK();
 				continue;
 			}
+
+			ClientInfo* clientInfo = new ClientInfo;
+			clientInfo->clientSocket_ = clientSocket;
+			clientInfo->clientAddress_ = clientAddress;
+			clientInfo->handler_ = requestHandler;
+			clientInfo->thread_ = newThread;
+			clientInfoList.push_back(clientInfo);
+
+			newThread->Start();
 		}
 
 		return 1;
 	}
 
+	void ShutDown()
+	{
+		CleanUp();
+	}
+
+private:
 	void CleanUp()
 	{
+		for (int i = 0; i < clientInfoList.size(); ++i)
+		{
+			/*clientInfoList[i]->thread_;
+			clientInfoList[i]->clientSocket_;
+			clientInfoList[i]->clientAddress_;
+			clientInfoList[i]->handler_;*/
+
+			delete clientInfoList[i]->thread_;
+			delete clientInfoList[i]->handler_;
+			delete clientInfoList[i];
+			clientInfoList[i] = nullptr;
+		}
+
 		if (hServerSocket_ != INVALID_SOCKET)
 		{
 			closesocket(hServerSocket_);
@@ -141,6 +188,7 @@ private:
 	const unsigned short port_;
 	WSADATA wsaData_;
 	SOCKET hServerSocket_;
-	SOCKADDR_IN serverAddress_;
+	SOCKADDR_IN serverAddress_;	
+	std::vector<ClientInfo*> clientInfoList;
 };
 

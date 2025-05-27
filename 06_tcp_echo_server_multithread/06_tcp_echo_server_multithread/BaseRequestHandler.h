@@ -11,10 +11,6 @@ public:
 
 	virtual unsigned int Handle() = 0;
 
-	static unsigned __stdcall ThreadEntry(void* arg);
-
-	void Exit();
-
 protected:
 	SOCKET hClientSocket_;
 	SOCKADDR_IN clientAddress_;

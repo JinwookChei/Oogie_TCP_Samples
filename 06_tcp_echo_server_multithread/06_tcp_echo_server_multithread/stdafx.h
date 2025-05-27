@@ -8,6 +8,7 @@
 #include <ws2tcpip.h>
 #include <process.h>
 #include <Windows.h>
+#include <type_traits>
 #include <vector>
 #include <functional>
 

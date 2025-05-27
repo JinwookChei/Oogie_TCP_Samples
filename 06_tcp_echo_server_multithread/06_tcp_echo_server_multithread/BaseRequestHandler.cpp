@@ -1,9 +1,8 @@
 #include "stdafx.h"
 #include "BaseRequestHandler.h"
-#include "EchoServer.h"
 
 BaseRequestHandler::BaseRequestHandler()
-	: hClientSocket_(INVALID_SOCKET),
+	: hClientSocket_(NULL),
 	clientAddress_()
 {
 }
@@ -22,18 +21,4 @@ bool BaseRequestHandler::Init(SOCKET hClientSocket, SOCKADDR_IN clientAddress)
 	clientAddress_ = clientAddress;
 
 	return true;
-}
-
-unsigned __stdcall BaseRequestHandler::ThreadEntry(void* arg)
-{
-	BaseRequestHandler* requestHandler = static_cast<BaseRequestHandler*>(arg);
-	requestHandler->Handle();
-	requestHandler->Exit();
-
-	return 0;
-}
-
-void BaseRequestHandler::Exit()
-{
-
 }

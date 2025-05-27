@@ -18,14 +18,49 @@ int main()
 		return 0;
 	}
 
-	MyThread* serverThread = new MyThread(std::bind(EchoServer<MyTCPSocketHandler>::ServeForever, echoServer));
+	MyThread* serverThread = new MyThread(std::bind(&EchoServer<MyTCPSocketHandler>::ServeForever, echoServer));
 	if (serverThread == nullptr) {
 		DEBUG_BREAK();
 		return 0;
 	}
 
 	serverThread->Start();
+
 	printf("> server loop running in thread (main thread):%s\n", serverThread->GetThreadName());
+
+	unsigned int baseThreadNumber = MyThread::ActiveCount();
+
+	char msg[32];
+	size_t len;
+
+	while (true)
+	{
+		printf("> ");
+		if (fgets(msg, sizeof(msg), stdin) == NULL)
+		{
+			break;
+		}
+
+		// 개행 문자 제거
+		len = strlen(msg);
+		if (len > 0 && msg[len - 1] == '\n')
+		{
+			msg[len - 1] = '\0';
+		}
+
+		if (strcmp(msg, "quit") == 0) {
+
+			if (baseThreadNumber == MyThread::ActiveCount())
+			{
+				printf("> stop procedure started\n");
+				break;
+			}
+			else
+			{
+				printf("> active threads are remained : %d threads\n", MyThread::ActiveCount() - baseThreadNumber);
+			}
+		}
+	}
 
 	printf("> echo - server is de-activated\n");
 
@@ -36,7 +71,7 @@ int main()
 		serverThread = nullptr;
 	}
 
-	if(echoServer != nullptr)
+	if (echoServer != nullptr)
 	{
 		delete echoServer;
 		echoServer = nullptr;
