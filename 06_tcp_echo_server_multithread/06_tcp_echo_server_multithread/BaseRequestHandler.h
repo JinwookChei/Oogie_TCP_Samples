@@ -1,5 +1,6 @@
 #pragma once
 
+class MyThread;
 class BaseRequestHandler
 {
 public:
@@ -8,10 +9,15 @@ public:
 	virtual ~BaseRequestHandler();
 
 	bool Init(SOCKET hClientSocket, SOCKADDR_IN clientAddress);
+	
+	void Execute();
 
 	virtual unsigned int Handle() = 0;
+
+	void CleanUp();
 
 protected:
 	SOCKET hClientSocket_;
 	SOCKADDR_IN clientAddress_;
+	MyThread* thread_;
 };

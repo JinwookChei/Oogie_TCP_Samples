@@ -6,14 +6,6 @@
 
 class BaseRequestHandler;
 
-struct ClientInfo
-{
-	SOCKET clientSocket_;
-	sockaddr_in clientAddress_;
-	BaseRequestHandler* handler_;
-	MyThread* thread_;
-};
-
 template<typename HandlerType>
 class EchoServer
 {
@@ -24,7 +16,8 @@ public:
 		: host_(host),
 		port_(port),
 		hServerSocket_(INVALID_SOCKET),
-		serverAddress_()
+		serverAddress_(),
+		isRunning_(false)
 	{
 
 		if (WSAStartup(MAKEWORD(2, 2), &wsaData_) != 0)
@@ -41,6 +34,7 @@ public:
 
 	unsigned int ServeForever()
 	{
+		isRunning_ = true;
 		hServerSocket_ = socket(PF_INET, SOCK_STREAM, 0);
 		if (hServerSocket_ == INVALID_SOCKET)
 		{
@@ -85,15 +79,18 @@ public:
 			sockaddr_in clientAddress;
 			int sizeClientAddress = sizeof(clientAddress);
 			SOCKET clientSocket = accept(hServerSocket_, (SOCKADDR*)&clientAddress, &sizeClientAddress);
-			if (clientSocket == INVALID_SOCKET)
+			if (clientSocket == INVALID_SOCKET && isRunning_ == false)
+			{
+				break;
+			}
+			else if(clientSocket == INVALID_SOCKET && isRunning_ == true)
 			{
 				printf("> accept() failed\n");
 				DEBUG_BREAK();
 				continue;
 			}
 
-			HandlerType* handler = new HandlerType;
-			BaseRequestHandler* requestHandler = dynamic_cast<BaseRequestHandler*>(handler);
+			BaseRequestHandler* requestHandler = new HandlerType;
 			if (requestHandler == nullptr)
 			{
 				printf("> requesthandler create failed\n");
@@ -123,32 +120,8 @@ public:
 				continue;
 			}
 
-			MyThread* newThread = new MyThread(std::bind(&BaseRequestHandler::Handle, requestHandler));
-			if (newThread == nullptr)
-			{
-				printf("failed to create thread\n");
-				if (requestHandler != nullptr)
-				{
-					delete requestHandler;
-					requestHandler = nullptr;
-				}
-				if (clientSocket != INVALID_SOCKET)
-				{
-					closesocket(clientSocket);
-					clientSocket = NULL;
-				}
-				DEBUG_BREAK();
-				continue;
-			}
-
-			ClientInfo* clientInfo = new ClientInfo;
-			clientInfo->clientSocket_ = clientSocket;
-			clientInfo->clientAddress_ = clientAddress;
-			clientInfo->handler_ = requestHandler;
-			clientInfo->thread_ = newThread;
-			clientInfoList.push_back(clientInfo);
-
-			newThread->Start();
+			requestHandlers_.push_back(requestHandler);
+			requestHandler->Execute();
 		}
 
 		return 1;
@@ -156,23 +129,17 @@ public:
 
 	void ShutDown()
 	{
+		isRunning_ = false;
 		CleanUp();
 	}
 
 private:
 	void CleanUp()
 	{
-		for (int i = 0; i < clientInfoList.size(); ++i)
+		for (int i = 0; i < requestHandlers_.size(); ++i)
 		{
-			/*clientInfoList[i]->thread_;
-			clientInfoList[i]->clientSocket_;
-			clientInfoList[i]->clientAddress_;
-			clientInfoList[i]->handler_;*/
-
-			delete clientInfoList[i]->thread_;
-			delete clientInfoList[i]->handler_;
-			delete clientInfoList[i];
-			clientInfoList[i] = nullptr;
+			delete requestHandlers_[i];
+			requestHandlers_[i] = nullptr;
 		}
 
 		if (hServerSocket_ != INVALID_SOCKET)
@@ -189,6 +156,7 @@ private:
 	WSADATA wsaData_;
 	SOCKET hServerSocket_;
 	SOCKADDR_IN serverAddress_;	
-	std::vector<ClientInfo*> clientInfoList;
+	std::vector<BaseRequestHandler*> requestHandlers_;
+	bool isRunning_;
 };
 

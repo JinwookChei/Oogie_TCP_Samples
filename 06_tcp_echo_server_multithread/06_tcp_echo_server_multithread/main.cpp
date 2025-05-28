@@ -28,7 +28,7 @@ int main()
 
 	printf("> server loop running in thread (main thread):%s\n", serverThread->GetThreadName());
 
-	unsigned int baseThreadNumber = MyThread::ActiveCount();
+	size_t baseThreadNumber = MyThread::ActiveCount();
 
 	char msg[32];
 	size_t len;
@@ -57,14 +57,15 @@ int main()
 			}
 			else
 			{
-				printf("> active threads are remained : %d threads\n", MyThread::ActiveCount() - baseThreadNumber);
+				printf("> active threads are remained : %zu threads\n", MyThread::ActiveCount() - baseThreadNumber);
 			}
 		}
 	}
 
 	printf("> echo - server is de-activated\n");
+	echoServer->ShutDown();
 
-
+	
 	if (serverThread != nullptr)
 	{
 		delete serverThread;
@@ -73,6 +74,7 @@ int main()
 
 	if (echoServer != nullptr)
 	{
+
 		delete echoServer;
 		echoServer = nullptr;
 	}

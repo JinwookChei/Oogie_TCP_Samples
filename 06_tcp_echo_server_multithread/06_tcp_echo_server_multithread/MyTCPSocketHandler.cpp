@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "MyThread.h"
 #include "MyTCPSocketHandler.h"
 
 MyTCPSocketHandler::MyTCPSocketHandler()
@@ -31,7 +32,7 @@ unsigned int MyTCPSocketHandler::Handle()
 			break;
 		}
 
-		printf("> echoed: %s\n", recvDatas_);
+		printf("> echoed: %s by %s\n", recvDatas_, thread_->GetThreadName());
 
 		// SendAll Start
 		int accumulBytesSent = 0;

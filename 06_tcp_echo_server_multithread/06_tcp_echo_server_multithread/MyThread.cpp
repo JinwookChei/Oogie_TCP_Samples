@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include "MyThread.h"
 
-unsigned int MyThread::activeCount = 0;
+std::vector<HANDLE> MyThread::activeThread_;
 
 unsigned int MyThread::threadNum = 0;
 
@@ -34,15 +34,15 @@ MyThread::~MyThread()
 {
     CleanUp();
 
-    if (activeCount == 0 && hMutex != NULL) {
+    if (activeThread_.size() == 0 && hMutex != NULL) {
         CloseHandle(hMutex);
         hMutex = NULL;
     }
 }
 
-unsigned int MyThread::ActiveCount()
+size_t MyThread::ActiveCount()
 {
-    return activeCount;
+    return activeThread_.size();
 }
 
 void MyThread::Start()
@@ -54,8 +54,8 @@ void MyThread::Start()
     }
 
     MyThread::Lock();
-    ++MyThread::activeCount;
-    MyThread::Unlock();
+    activeThread_.push_back(hThread_);
+    MyThread::UnLock();
 }
 
 void MyThread::Join()
@@ -74,7 +74,7 @@ void MyThread::Lock()
     }
 }
 
-void MyThread::Unlock()
+void MyThread::UnLock()
 {
     if (hMutex != NULL) {
         ReleaseMutex(hMutex);
@@ -84,6 +84,11 @@ void MyThread::Unlock()
 char* MyThread::GetThreadName() const
 {
     return threadName_;
+}
+
+HANDLE MyThread::GetHandle() const
+{
+    return hThread_;
 }
 
 void MyThread::CleanUp()
@@ -116,8 +121,12 @@ unsigned __stdcall MyThread::ThreadProc(void* param)
     }
     
     pThisThread->Lock();
-    --MyThread::activeCount;
-    pThisThread->Unlock();
+    auto it = std::find(activeThread_.begin(), activeThread_.end(), pThisThread->GetHandle());
+    if (it != activeThread_.end()) 
+    {
+        activeThread_.erase(it);
+    }
+    pThisThread->UnLock();
 
     _endthreadex(0);
 
