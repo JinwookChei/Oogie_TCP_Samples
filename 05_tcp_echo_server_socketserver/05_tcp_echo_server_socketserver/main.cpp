@@ -4,6 +4,12 @@
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #include <winsock2.h>
 
+#ifdef _DEBUG
+#define DEBUG_BREAK() __debugbreak()
+#else
+#define DEBUG_BREAK() ((void)0)
+#endif
+
 #pragma comment(lib, "ws2_32.lib")
 #define BUFFER_SIZE 1024
 
@@ -21,7 +27,7 @@ public:
 	{
 		recvDatas_ = (char*)malloc(sizeBuffer);
 		if (recvDatas_ == nullptr) {
-			__debugbreak();
+			DEBUG_BREAK();
 			CleanUp();
 			return;
 		}
@@ -38,7 +44,7 @@ public:
 		{
 			if (recvDatas_ == nullptr)
 			{
-				__debugbreak();
+				DEBUG_BREAK();
 				CleanUp();
 				return;
 			}
@@ -46,7 +52,7 @@ public:
 			const int recvLen = recv(hClientSocket, recvDatas_, BUFFER_SIZE, 0);
 			if (recvLen == -1)
 			{
-				__debugbreak();
+				DEBUG_BREAK();
 				CleanUp();
 				return;
 			}
@@ -60,7 +66,7 @@ public:
 				int bytesSent = send(hClientSocket, recvDatas_ + accumulBytesSent, recvLen - accumulBytesSent, 0);
 				if (bytesSent == -1)
 				{
-					__debugbreak();
+					DEBUG_BREAK();
 					return;
 				}
 				accumulBytesSent += bytesSent;
@@ -102,7 +108,7 @@ public:
 	{	
 		if (WSAStartup(MAKEWORD(2, 2), &wsaData_) != 0)
 		{
-			__debugbreak();
+			DEBUG_BREAK();
 			return;
 		}
 	}
@@ -116,7 +122,7 @@ public:
 		hServerSocket_ = socket(PF_INET, SOCK_STREAM, 0);
 		if (hServerSocket_ == INVALID_SOCKET)
 		{
-			__debugbreak();
+			DEBUG_BREAK();
 			CleanUp();
 			return;
 		}
@@ -124,7 +130,7 @@ public:
 		unsigned long hostIP = inet_addr(host_);
 		if (hostIP == INADDR_NONE)
 		{
-			__debugbreak();
+			DEBUG_BREAK();
 			CleanUp();
 			return;
 		}
@@ -162,14 +168,14 @@ public:
 			hClientSocket_ = accept(hServerSocket_, (SOCKADDR*)&clientAddress_, &sizeClientAddress_);
 			if (hClientSocket_ == INVALID_SOCKET)
 			{
-				__debugbreak();
+				DEBUG_BREAK();
 				CleanUp();
 				return;
 			}
 
 			if (handler_ == nullptr)
 			{
-				__debugbreak();
+				DEBUG_BREAK();
 				CleanUp();
 				return;
 			}
@@ -213,14 +219,14 @@ int main(int argc, char* argv[])
 	BaseRequestHandler* handler = new MyTCPSocketHandler(BUFFER_SIZE);
 	if (handler == nullptr)
 	{
-		__debugbreak();
+		DEBUG_BREAK();
 		return 0;
 	}
 
 	EchoServer* echoServer = new EchoServer(host, port, handler);
 	if (echoServer == nullptr)
 	{
-		__debugbreak();
+		DEBUG_BREAK();
 		return 0;
 	}
 

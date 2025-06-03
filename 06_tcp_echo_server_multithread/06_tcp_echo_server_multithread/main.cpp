@@ -6,6 +6,11 @@
 
 int main()
 {
+#ifdef _DEBUG
+	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+	//_CrtSetBreakAlloc(167);
+#endif  // _DEBUG
+
 	const char* host = "127.0.0.1";
 	const unsigned short port = 65456;
 
@@ -63,9 +68,10 @@ int main()
 	}
 
 	printf("> echo - server is de-activated\n");
-	echoServer->ShutDown();
+	echoServer->ShutDown();	
+	serverThread->Join();
 
-	
+
 	if (serverThread != nullptr)
 	{
 		delete serverThread;
@@ -79,6 +85,9 @@ int main()
 		echoServer = nullptr;
 	}
 
-
+#ifdef _DEBUG
+	_CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_DEBUG);
+	_CrtDumpMemoryLeaks();
+#endif  // _DEBUG
 	return 0;
 }

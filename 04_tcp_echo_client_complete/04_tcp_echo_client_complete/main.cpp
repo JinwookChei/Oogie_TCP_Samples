@@ -5,6 +5,12 @@
 #include <winsock2.h>
 #pragma comment(lib, "ws2_32.lib")
 
+#ifdef _DEBUG
+#define DEBUG_BREAK() __debugbreak()
+#else
+#define DEBUG_BREAK() ((void)0)
+#endif
+
 #define BUFFER_SIZE 1024
 
 class EchoClient
@@ -21,7 +27,7 @@ public:
 	{
 		if (WSAStartup(MAKEWORD(2, 2), &wsaData_) != 0)
 		{
-			__debugbreak();
+			DEBUG_BREAK();
 			return;
 		}
 	}
@@ -36,7 +42,7 @@ public:
 		hClientSocket_ = socket(PF_INET, SOCK_STREAM, 0);
 		if (hClientSocket_ == INVALID_SOCKET)
 		{
-			__debugbreak();
+			DEBUG_BREAK();
 			CleanUp();
 			return;
 		}
@@ -44,7 +50,7 @@ public:
 		unsigned long hostIP = inet_addr(host_);
 		if (hostIP == INADDR_NONE)
 		{
-			__debugbreak();
+			DEBUG_BREAK();
 			CleanUp();
 			return;
 		}
@@ -75,7 +81,7 @@ public:
 
 		if (sendDatas_ == NULL || recvDatas_ == NULL)
 		{
-			__debugbreak();
+			DEBUG_BREAK();
 			return;
 		}
 
@@ -98,7 +104,7 @@ public:
 				size_t bytesSent = send(hClientSocket_, sendDatas_ + accumulBytesSent, sendLen - accumulBytesSent, 0);
 				if (bytesSent == SOCKET_ERROR)
 				{
-					__debugbreak();
+					DEBUG_BREAK();
 					return;
 				}
 				accumulBytesSent += bytesSent;
@@ -109,7 +115,7 @@ public:
 			memset(recvDatas_, 0, BUFFER_SIZE);
 			const int recvLen = recv(hClientSocket_, recvDatas_, BUFFER_SIZE, 0);
 			if (recvLen == -1) {
-				__debugbreak();
+				DEBUG_BREAK();
 				return;
 			}
 			printf("> received: %s\n", recvDatas_);
@@ -166,7 +172,7 @@ int main(int argc, char* argv[])
 	EchoClient* echoClient = new EchoClient(host, port, BUFFER_SIZE);
 	if (echoClient == nullptr)
 	{
-		__debugbreak();
+		DEBUG_BREAK();
 		return -1;
 	}
 

@@ -53,6 +53,8 @@ void BaseRequestHandler::CleanUp()
 
 	if (thread_ != nullptr)
 	{
+		thread_->Join();
+
 		delete thread_;
 		thread_ = nullptr;
 	}

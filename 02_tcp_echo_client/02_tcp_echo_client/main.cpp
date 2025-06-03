@@ -4,9 +4,15 @@
 #include <winsock2.h>
 #pragma comment(lib, "ws2_32.lib")
 
+#ifdef _DEBUG
+#define DEBUG_BREAK() __debugbreak()
+#else
+#define DEBUG_BREAK() ((void)0)
+#endif
+
+
 #define BUFFER_SIZE 1024
-//static char host[] = "127.0.0.1";
-static char host[] = "172.30.1.92";
+static char host[] = "127.0.0.1";
 unsigned short port = 65456;
 
 
@@ -20,21 +26,21 @@ int main(int argc, char* argv[])
 
 	if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
 	{
-		__debugbreak();
+		DEBUG_BREAK();
 		return -1;
 	}
 
 	hClientSocket = socket(PF_INET, SOCK_STREAM, 0);
 	if (hClientSocket == INVALID_SOCKET)
 	{
-		__debugbreak();
+		DEBUG_BREAK();
 		return -1;
 	}
 
 	unsigned long hostIP = inet_addr(host);
 	if (hostIP == INADDR_NONE)
 	{
-		__debugbreak();
+		DEBUG_BREAK();
 		return -1;
 	}
 
@@ -45,7 +51,7 @@ int main(int argc, char* argv[])
 
 	if (connect(hClientSocket, (SOCKADDR*)&servAddr, sizeof(servAddr)) == SOCKET_ERROR)
 	{
-		__debugbreak();
+		DEBUG_BREAK();
 		return -1;
 	}
 
@@ -54,7 +60,7 @@ int main(int argc, char* argv[])
 
 	if (sendDatas == NULL || recvDatas == NULL)
 	{
-		__debugbreak();
+		DEBUG_BREAK();
 		return -1;
 	}
 
@@ -77,7 +83,7 @@ int main(int argc, char* argv[])
 			size_t bytesSent = send(hClientSocket, sendDatas + accumulBytesSent, sendLen - accumulBytesSent, 0);
 			if (bytesSent == SOCKET_ERROR) 
 			{
-				__debugbreak();
+				DEBUG_BREAK();
 				return -1;
 			}
 			accumulBytesSent += bytesSent;
@@ -88,7 +94,7 @@ int main(int argc, char* argv[])
 		memset(recvDatas, 0, BUFFER_SIZE);
 		const int recvLen = recv(hClientSocket, recvDatas, BUFFER_SIZE, 0);
 		if (recvLen == -1) {
-			__debugbreak();
+			DEBUG_BREAK();
 			return -1;
 		}
 		printf("> received: %s\n", recvDatas);

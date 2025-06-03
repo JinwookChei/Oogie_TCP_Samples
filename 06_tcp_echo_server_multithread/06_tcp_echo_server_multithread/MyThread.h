@@ -1,5 +1,4 @@
 #pragma once
-#include <vector>
 
 class MyThread {
 public:
@@ -7,7 +6,7 @@ public:
 
     virtual ~MyThread();
 
-    static size_t ActiveCount();
+    static unsigned int ActiveCount();
 
     void Start();
 
@@ -22,7 +21,6 @@ public:
     HANDLE GetHandle() const;
 
 protected:
-
     void CleanUp();
 
 private:
@@ -31,9 +29,9 @@ private:
 private:
     static HANDLE hMutex;
 
-    static std::vector<HANDLE> activeThread_;
+    static unsigned int activeThreadCount_;
 
-    static unsigned int threadNum;
+    static unsigned int threadNameLabel_;
 
     HANDLE hThread_;
 
@@ -43,3 +41,4 @@ private:
 
     std::function<unsigned int()> threadFunc_;
 };
+

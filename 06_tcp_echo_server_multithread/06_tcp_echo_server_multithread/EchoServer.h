@@ -3,7 +3,6 @@
 #include "BaseRequestHandler.h"
 #include "MyThread.h"
 
-
 class BaseRequestHandler;
 
 template<typename HandlerType>
@@ -97,7 +96,7 @@ public:
 				if (clientSocket != INVALID_SOCKET)
 				{
 					closesocket(clientSocket);
-					clientSocket = NULL;
+					clientSocket = INVALID_SOCKET;
 				}
 				DEBUG_BREAK();
 				continue;
@@ -114,7 +113,7 @@ public:
 				if(clientSocket != INVALID_SOCKET)
 				{
 					closesocket(clientSocket);
-					clientSocket = NULL;
+					clientSocket = INVALID_SOCKET;
 				}
 				DEBUG_BREAK();
 				continue;

@@ -4,11 +4,15 @@
 #include <winsock2.h>
 #pragma comment(lib, "ws2_32.lib")
 
-#define BUFFER_SIZE 1024
-//static char host[] = "127.0.0.1";
-static char host[] = "172.30.1.92";
-unsigned short port = 65456;
+#ifdef _DEBUG
+#define DEBUG_BREAK() __debugbreak()
+#else
+#define DEBUG_BREAK() ((void)0)
+#endif
 
+#define BUFFER_SIZE 1024
+static char host[] = "127.0.0.1";
+unsigned short port = 65456;
 
 
 int main(int argc, char* argv[])
@@ -23,21 +27,21 @@ int main(int argc, char* argv[])
 
 	if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
 	{
-		__debugbreak();
+		DEBUG_BREAK();
 		return -1;
 	}
 
 	hServerSocket = socket(PF_INET, SOCK_STREAM, 0);
 	if (hServerSocket == INVALID_SOCKET)
 	{
-		__debugbreak();
+		DEBUG_BREAK();
 		return -1;
 	}
 
 	unsigned long hostIP = inet_addr(host);
 	if (hostIP == INADDR_NONE)
 	{
-		__debugbreak();
+		DEBUG_BREAK();
 		return -1;
 	}
 
@@ -48,20 +52,20 @@ int main(int argc, char* argv[])
 
 	if (bind(hServerSocket, (SOCKADDR*)&serverAddress, sizeof(serverAddress)) == SOCKET_ERROR)
 	{
-		__debugbreak();
+		DEBUG_BREAK();
 		return -1;
 	}
 
 	if (listen(hServerSocket, 10) == SOCKET_ERROR)
 	{
-		__debugbreak();
+		DEBUG_BREAK();
 		return -1;
 	}
 
 	hClientSocket = accept(hServerSocket, (SOCKADDR*)&clientAddress, &sizeClientAddress);
 	if (hClientSocket == INVALID_SOCKET)
 	{
-		__debugbreak();
+		DEBUG_BREAK();
 		return -1;
 	}
 
@@ -72,7 +76,7 @@ int main(int argc, char* argv[])
 
 	char* recvDatas = (char*)malloc(1024);
 	if (recvDatas == NULL) {
-		__debugbreak();
+		DEBUG_BREAK();
 		return -1;
 	}
 
@@ -81,7 +85,7 @@ int main(int argc, char* argv[])
 		memset(recvDatas, 0, BUFFER_SIZE);
 		const int recvLen = recv(hClientSocket, recvDatas, BUFFER_SIZE, 0);
 		if (recvLen == -1) {
-			__debugbreak();
+			DEBUG_BREAK();
 			return -1;
 		}
 		printf("> echoed: %s\n", recvDatas);
@@ -93,7 +97,7 @@ int main(int argc, char* argv[])
 			size_t bytesSent = send(hClientSocket, recvDatas+ accumulBytesSent, recvLen - accumulBytesSent, 0);
 			if (-1 == bytesSent)
 			{
-				__debugbreak();
+				DEBUG_BREAK();
 				return -1;
 			}
 			accumulBytesSent += bytesSent;
