@@ -117,7 +117,7 @@ public:
 		CleanUp();
 	}
 
-	void ServeForever(int argc, char* argv[])
+	void ServeForever()
 	{
 		hServerSocket_ = socket(PF_INET, SOCK_STREAM, 0);
 		if (hServerSocket_ == INVALID_SOCKET)
@@ -144,14 +144,14 @@ public:
 		{
 			if (bind(hServerSocket_, (SOCKADDR*)&serverAddress_, sizeof(serverAddress_)) == SOCKET_ERROR)
 			{
-				std::cerr << "> bind() failed and program terminated" << std::endl;
+				throw std::runtime_error("> bind() failed and program terminated\n");
 				CleanUp();
 				return;
 			}
 		}
 		catch (const std::exception& ex)
 		{
-			std::cerr << "> bind() failed by exception: " << ex.what() << std::endl;
+			std::cerr << "> bind() failed by exception: " << ex.what();
 			CleanUp();
 			return;
 		}
@@ -211,7 +211,7 @@ private:
 };
 
 
-int main(int argc, char* argv[])
+int main()
 {
 	char host[] = "127.0.0.1";
 	unsigned short port = 65456;
@@ -231,7 +231,7 @@ int main(int argc, char* argv[])
 	}
 
 	printf("> echo - server is activated\n");
-	echoServer->ServeForever(argc, argv);
+	echoServer->ServeForever();
 	printf("> echo - client is de - activated");
 
 	if (handler != nullptr)

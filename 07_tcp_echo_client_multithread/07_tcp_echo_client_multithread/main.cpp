@@ -58,13 +58,8 @@ unsigned int recvHandler(SOCKET hClientSocket)
 }
 
 
-int main()
+int main_()
 {
-#ifdef _DEBUG
-	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
-	//_CrtSetBreakAlloc(167);
-#endif  // _DEBUG
-
 	char host[] = "127.0.0.1";
 	unsigned short port = 65456;
 
@@ -106,15 +101,12 @@ int main()
 		{
 			if (connect(hClientSocket, (SOCKADDR*)&servAddr, sizeof(servAddr)) == SOCKET_ERROR)
 			{
-				std::cerr << "> connect() failed and program terminated" << std::endl;
-				closesocket(hClientSocket);
-				hClientSocket = NULL;
-				break;
+				throw std::runtime_error("> connect() failed and program terminated\n");
 			}
 		}
 		catch (const std::exception& ex)
 		{
-			std::cerr << "> connect() failed by exception: " << ex.what() << std::endl;
+			std::cerr << "> connect() failed by exception: \n" << ex.what();
 			break;
 		}
 
@@ -193,10 +185,24 @@ int main()
 	}
 
 	WSACleanup();
-	
+
+	return 0;
+}
+
+int main()
+{
+#ifdef _DEBUG
+	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+	//_CrtSetBreakAlloc(167);
+#endif  // _DEBUG
+
+	printf("> echo - client is activated\n");
+	main_();
+	printf("> echo-client is de-activated\n");
+
+
 #ifdef _DEBUG
 	_CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_DEBUG);
 	_CrtDumpMemoryLeaks();
 #endif  // _DEBUG
-	return 0;
 }

@@ -37,7 +37,6 @@ int main()
 
 	char msg[32];
 	size_t len;
-
 	while (true)
 	{
 		printf("> ");
@@ -80,7 +79,6 @@ int main()
 
 	if (echoServer != nullptr)
 	{
-
 		delete echoServer;
 		echoServer = nullptr;
 	}
