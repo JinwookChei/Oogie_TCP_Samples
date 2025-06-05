@@ -9,10 +9,10 @@ public:
 
 	unsigned int Handle() override;
 
-	void CleanUp();
+	void CleanUp() override;
 
 public:
-	static std::vector<SOCKET*> socketGroup_;
+	static std::vector<SOCKET> socketGroup_;
 
 private:
 	char* recvDatas_;

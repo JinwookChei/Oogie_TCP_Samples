@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "MyThread.h"
 
-unsigned int MyThread::activeThreadCount_ = 0;
+std::vector<MyThread*> MyThread::activeThreads_;
 
 unsigned int MyThread::threadNameLabel_ = 0;
 
@@ -22,7 +22,7 @@ MyThread::~MyThread()
 {
 	CleanUp();
 
-	if (activeThreadCount_ == 0 && hMutex != NULL) {
+	if (activeThreads_.size() == 0 && hMutex != NULL) {
 
 		CloseHandle(hMutex);
 		hMutex = NULL;
@@ -31,7 +31,7 @@ MyThread::~MyThread()
 
 unsigned int MyThread::ActiveCount()
 {
-	return activeThreadCount_;
+	return activeThreads_.size();
 }
 
 void MyThread::Start()
@@ -54,7 +54,7 @@ void MyThread::Start()
 	}
 
 	MyThread::Lock();
-	++activeThreadCount_;
+	activeThreads_.push_back(this);
 	MyThread::UnLock();
 }
 
@@ -122,7 +122,15 @@ unsigned __stdcall MyThread::ThreadProc(void* param)
 	}
 
 	pThisThread->Lock();
-	--activeThreadCount_;
+	for (auto it = activeThreads_.begin(); it != activeThreads_.end();) {
+		if (*it == pThisThread) {
+			it = activeThreads_.erase(it);
+		}
+		else {
+			++it;
+		}
+	}
+	activeThreads_;
 	pThisThread->UnLock();
 
 	_endthreadex(0);

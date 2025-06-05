@@ -29,7 +29,7 @@ private:
 private:
     static HANDLE hMutex;
 
-    static unsigned int activeThreadCount_;
+    static std::vector<MyThread*> activeThreads_;
 
     static unsigned int threadNameLabel_;
 

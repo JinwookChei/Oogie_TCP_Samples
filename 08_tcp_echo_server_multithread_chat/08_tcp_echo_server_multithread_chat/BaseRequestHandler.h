@@ -14,7 +14,7 @@ public:
 
 	virtual unsigned int Handle() = 0;
 
-	void CleanUp();
+	virtual void CleanUp();
 
 protected:
 	SOCKET hClientSocket_;

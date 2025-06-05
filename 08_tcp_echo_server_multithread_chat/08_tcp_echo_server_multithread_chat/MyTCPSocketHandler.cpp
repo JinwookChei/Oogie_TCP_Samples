@@ -2,7 +2,7 @@
 #include "MyThread.h"
 #include "MyTCPSocketHandler.h"
 
-std::vector<SOCKET*> MyTCPSocketHandler::socketGroup_;
+std::vector<SOCKET> MyTCPSocketHandler::socketGroup_;
 
 MyTCPSocketHandler::MyTCPSocketHandler()
 {
@@ -18,13 +18,15 @@ unsigned int MyTCPSocketHandler::Handle()
 {
 	printf("> client connected by IP address %s with Port number %u\n", inet_ntoa(clientAddress_.sin_addr), ntohs(clientAddress_.sin_port));
 
-	if (hClientSocket_ == NULL)
+	if (hClientSocket_ == INVALID_SOCKET)
 	{
 		DEBUG_BREAK();
 		CleanUp();
 		return 0;
 	}
-	MyTCPSocketHandler::socketGroup_.push_back(&hClientSocket_);
+	thread_->Lock();
+	MyTCPSocketHandler::socketGroup_.push_back(hClientSocket_);
+	thread_->UnLock();
 
 
 	while (true)
@@ -46,8 +48,10 @@ unsigned int MyTCPSocketHandler::Handle()
 		if (strcmp(recvDatas_, "quit") == 0)
 		{
 			for (auto it = MyTCPSocketHandler::socketGroup_.begin(); it != MyTCPSocketHandler::socketGroup_.end();) {
-				if (*it == &this->hClientSocket_) {
+				if (*it == this->hClientSocket_) {
+					thread_->Lock();
 					it = MyTCPSocketHandler::socketGroup_.erase(it);
+					thread_->UnLock();
 				}
 				else {
 					++it;
@@ -64,7 +68,7 @@ unsigned int MyTCPSocketHandler::Handle()
 				int accumulBytesSent = 0;
 				while (accumulBytesSent < recvLen)
 				{
-					int bytesSent = send(*MyTCPSocketHandler::socketGroup_[i], recvDatas_ + accumulBytesSent, recvLen - accumulBytesSent, 0);
+					int bytesSent = send(MyTCPSocketHandler::socketGroup_[i], recvDatas_ + accumulBytesSent, recvLen - accumulBytesSent, 0);
 					if (bytesSent == -1)
 					{
 						DEBUG_BREAK();
@@ -81,6 +85,8 @@ unsigned int MyTCPSocketHandler::Handle()
 
 void MyTCPSocketHandler::CleanUp()
 {
+	BaseRequestHandler::CleanUp();
+
 	if (recvDatas_ != nullptr)
 	{
 		delete[] recvDatas_;
