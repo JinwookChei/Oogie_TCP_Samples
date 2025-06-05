@@ -157,6 +157,7 @@ int main_()
 			
 			// 종료 조건
 			if (strcmp(sendDatas, "quit") == 0) {
+				clientThread->Join();
 				isRunning = false;
 				break;
 			}
@@ -166,8 +167,7 @@ int main_()
 	
 
 	if (clientThread != nullptr)
-	{
-		clientThread->Join();
+	{	
 		delete clientThread;
 		clientThread = nullptr;
 	}

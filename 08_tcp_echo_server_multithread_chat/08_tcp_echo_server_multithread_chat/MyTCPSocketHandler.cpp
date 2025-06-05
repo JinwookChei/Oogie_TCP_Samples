@@ -49,6 +49,21 @@ unsigned int MyTCPSocketHandler::Handle()
 		{
 			for (auto it = MyTCPSocketHandler::socketGroup_.begin(); it != MyTCPSocketHandler::socketGroup_.end();) {
 				if (*it == this->hClientSocket_) {
+
+					// SendAll Start
+					int accumulBytesSent = 0;
+					while (accumulBytesSent < recvLen)
+					{
+						int bytesSent = send(this->hClientSocket_, recvDatas_ + accumulBytesSent, recvLen - accumulBytesSent, 0);
+						if (bytesSent == -1)
+						{
+							DEBUG_BREAK();
+							break;
+						}
+						accumulBytesSent += bytesSent;
+					}
+					// SendAll End
+
 					thread_->Lock();
 					it = MyTCPSocketHandler::socketGroup_.erase(it);
 					thread_->UnLock();
