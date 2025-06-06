@@ -58,9 +58,19 @@ unsigned int recvHandler(SOCKET hClientSocket)
 }
 
 
-int main_()
+int main_(int argc, char* argv[])
 {
-	char host[] = "127.0.0.1";
+	const char* host;
+	unsigned short port;
+	if (argc > 2) {
+		host = argv[1];
+		port = (unsigned short)atoi(argv[2]);
+	}
+	else {
+		host = "127.0.0.1";
+		port = 65456;
+	}
+
 	unsigned short port = 65456;
 
 	WSADATA wsaData;
@@ -189,7 +199,7 @@ int main_()
 	return 0;
 }
 
-int main()
+int main(int argc, char* argv[])
 {
 #ifdef _DEBUG
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
@@ -197,7 +207,7 @@ int main()
 #endif  // _DEBUG
 
 	printf("> echo - client is activated\n");
-	main_();
+	main_(argc, argv);
 	printf("> echo-client is de-activated\n");
 
 

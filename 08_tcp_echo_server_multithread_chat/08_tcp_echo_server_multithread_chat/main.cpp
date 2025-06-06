@@ -4,15 +4,24 @@
 #include "EchoServer.h"
 
 
-int main()
+int main(int argc, char* argv[])
 {
 #ifdef _DEBUG
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 	//_CrtSetBreakAlloc(167);
 #endif  // _DEBUG
 
-	const char* host = "127.0.0.1";
-	const unsigned short port = 65456;
+	const char* host;
+	unsigned short port;
+	if (argc > 2) {
+		host = argv[1];
+		port = (unsigned short)atoi(argv[2]);
+	}
+	else {
+		host = "127.0.0.1";
+		port = 65456;
+	}
+
 
 	printf("> echo - server is activated\n");
 

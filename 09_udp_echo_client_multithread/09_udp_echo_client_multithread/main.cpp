@@ -5,6 +5,9 @@
 
 unsigned int recvHandler(SOCKET hClientSocket)
 {
+	SOCKADDR_IN serverAddress;
+	int sizeServerAddress = sizeof(SOCKADDR_IN);
+
 	char* recvDatas = NULL;
 	int retCode = 0;
 
@@ -19,7 +22,6 @@ unsigned int recvHandler(SOCKET hClientSocket)
 		}
 
 		recvDatas = (char*)malloc(BUFFER_SIZE);
-
 		if (recvDatas == NULL)
 		{
 			DEBUG_BREAK();
@@ -29,14 +31,16 @@ unsigned int recvHandler(SOCKET hClientSocket)
 
 		while (true)
 		{
-			// 수신
 			memset(recvDatas, 0, BUFFER_SIZE);
-			const int recvLen = recv(hClientSocket, recvDatas, BUFFER_SIZE, 0);
-			if (recvLen == -1) {
+			int recvLen = recvfrom(hClientSocket, recvDatas, BUFFER_SIZE, 0, (SOCKADDR*)&serverAddress, &sizeServerAddress);
+			if (recvLen == SOCKET_ERROR) {
+				int err = WSAGetLastError();
+				printf("recvfrom error: %d\n", err);
 				DEBUG_BREAK();
-				retCode = 0;
 				break;
 			}
+			recvDatas[recvLen] = '\0';
+
 			printf("> received: %s\n", recvDatas);
 
 			// 종료 조건
@@ -57,7 +61,6 @@ unsigned int recvHandler(SOCKET hClientSocket)
 	return retCode;
 }
 
-
 int main_()
 {
 	char host[] = "127.0.0.1";
@@ -65,7 +68,10 @@ int main_()
 
 	WSADATA wsaData;
 	SOCKET hClientSocket;
-	SOCKADDR_IN servAddr;
+	SOCKADDR_IN serverAddress = {0};
+	SOCKADDR_IN clientAddress = {0};
+	int sizeServerAddress = sizeof(SOCKADDR_IN);
+	int sizeClientAddress = sizeof(SOCKADDR_IN);
 
 	MyThread* clientThread = nullptr;
 	char* sendDatas = NULL;
@@ -78,10 +84,10 @@ int main_()
 			break;
 		}
 		
-		hClientSocket = socket(PF_INET, SOCK_DGRAM, 0);
+		hClientSocket = socket(AF_INET, SOCK_DGRAM, 0);
 		if (hClientSocket == INVALID_SOCKET)
 		{
-			DEBUG_BREAK();	
+			DEBUG_BREAK();
 			break;
 		}
 
@@ -92,10 +98,20 @@ int main_()
 			break;
 		}
 
-		memset(&servAddr, 0, sizeof(servAddr));
-		servAddr.sin_family = AF_INET;
-		servAddr.sin_addr.s_addr = hostIP;
-		servAddr.sin_port = htons(port);
+		serverAddress.sin_family = AF_INET;
+		serverAddress.sin_addr.s_addr = hostIP;
+		serverAddress.sin_port = htons(port);
+
+		clientAddress.sin_family = AF_INET;
+		clientAddress.sin_addr.s_addr = htonl(INADDR_ANY); // 모든 IP에서 수신
+		clientAddress.sin_port = htons(0); // 시스템이 임의의 포트 할당
+
+		int retBind = bind(hClientSocket, (SOCKADDR*)&clientAddress, sizeClientAddress);
+		if (retBind == SOCKET_ERROR) {
+			printf("bind error: %d\n", WSAGetLastError());
+			DEBUG_BREAK();
+			break;
+		}
 
 		clientThread = new MyThread(std::bind(recvHandler, hClientSocket));
 		if (clientThread == nullptr)
@@ -125,9 +141,9 @@ int main_()
 				sendDatas[sendLen - 1] = '\0';
 				--sendLen;
 			}
+			
 
-			//send();
-			int bytesSent = sendto(hClientSocket, sendDatas, sendLen, 0, NULL, NULL);
+			int bytesSent = sendto(hClientSocket, sendDatas, sendLen, 0, (SOCKADDR*)&serverAddress, sizeServerAddress);
 			if (bytesSent == SOCKET_ERROR)
 			{
 				DEBUG_BREAK();
@@ -178,10 +194,4 @@ int main()
 	printf("> echo - client is activated\n");
 	main_();
 	printf("> echo-client is de-activated\n");
-
-
-#ifdef _DEBUG
-	_CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_DEBUG);
-	_CrtDumpMemoryLeaks();
-#endif  // _DEBUG
 }
